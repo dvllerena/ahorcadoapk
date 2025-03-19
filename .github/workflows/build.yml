@@ -22,9 +22,9 @@ jobs:
           command: buildozer android debug
           buildozer_version: stable
 
+      # Usar una versión específica y completa de upload-artifact
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v2.3.1
         with:
           name: package
-          path: ${{ steps.buildozer.outputs.filename }}
-
+          path: bin/*.apk
