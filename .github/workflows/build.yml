@@ -5,10 +5,26 @@ jobs:
   build-android:
     name: Build APK
     runs-on: ubuntu-latest
-
+    
+    # Añadir esta sección para persistir el caché entre ejecuciones
+    env:
+      BUILDOZER_CACHE: true
+      BUILDOZER_SKIP_UPDATE: true
+      
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      # Restaurar caché de buildozer
+      - name: Cache Buildozer
+        uses: actions/cache@v3
+        with:
+          path: |
+            .buildozer
+            ~/.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -42,11 +58,7 @@ jobs:
             zlib1g-dev \
             libgstreamer1.0 \
             gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good
-
-      - name: Install Android build dependencies
-        run: |
-          sudo apt-get install -y \
+            gstreamer1.0-plugins-good \
             openjdk-11-jdk \
             autoconf \
             automake \
@@ -57,43 +69,60 @@ jobs:
             unzip \
             zip
 
-      # Instalar Android SDK explícitamente
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-
-      # Instalar las build-tools específicamente
-      - name: Install Android build-tools
-        run: |
-          yes | sdkmanager "build-tools;34.0.0"
-          yes | sdkmanager "platforms;android-34"
-          yes | sdkmanager "platform-tools"
-          yes | sdkmanager "tools"
-          yes | sdkmanager "ndk;25.2.9519653"
-          yes | sdkmanager --licenses
-
-      # Configurar buildozer.spec
+      # Configurar buildozer.spec antes de la compilación
       - name: Configure buildozer.spec
         run: |
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
-          sed -i 's/^android.sdk_path =.*/android.sdk_path = \/usr\/local\/lib\/android\/sdk/' buildozer.spec
-          sed -i 's/^android.ndk_path =.*/android.ndk_path = \/usr\/local\/lib\/android\/sdk\/ndk\/25.2.9519653/' buildozer.spec
-          sed -i 's/^android.api =.*/android.api = 34/' buildozer.spec
-          sed -i 's/^android.minapi =.*/android.minapi = 21/' buildozer.spec
-          sed -i 's/^android.ndk =.*/android.ndk = 25.2.9519653/' buildozer.spec
-          sed -i 's/^p4a.bootstrap =.*/p4a.bootstrap = sdl2/' buildozer.spec
+          cat > buildozer.spec << 'EOF'
+          [app]
+          title = Mi Aplicación
+          package.name = miapp
+          package.domain = org.test
+          source.dir = .
+          source.include_exts = py,png,jpg,kv,atlas
+          version = 0.1
+          requirements = python3,kivy==2.1.0,kivymd==1.1.1
+          orientation = portrait
+          osx.python_version = 3
+          osx.kivy_version = 2.1.0
+          fullscreen = 0
+          android.permissions = INTERNET
+          android.api = 30
+          android.minapi = 21
+          android.sdk = 30
+          android.ndk = 25.2.9519653
+          android.skip_update = True
+          android.accept_sdk_license = True
+          android.arch = arm64-v8a
+          p4a.bootstrap = sdl2
+          p4a.branch = master
+          p4a.local_recipes = ./recipes
+          EOF
           cat buildozer.spec
 
-      # Construir APK con verbose para depuración
+      # Construir APK con opciones para no limpiar
       - name: Build APK
         run: |
+          # Intentar continuar desde donde se quedó
+          buildozer -v android debug || true
+          
+          # Si falló por AIDL, instalar manualmente las build-tools
+          if [ ! -d ".buildozer/android/platform/android-sdk/build-tools" ]; then
+            mkdir -p .buildozer/android/platform/android-sdk/build-tools
+            cd .buildozer/android/platform/android-sdk/build-tools
+            wget https://dl.google.com/android/repository/build-tools_r30.0.3-linux.zip
+            unzip build-tools_r30.0.3-linux.zip
+            mv android-11 30.0.3
+            cd ../../../../../
+          fi
+          
+          # Intentar construir de nuevo sin limpiar
           buildozer -v android debug
-          echo "APK built successfully"
-          find . -name "*.apk" -type f
-
+          
       # Listar archivos para depuración
       - name: List files
         run: |
           find . -name "*.apk" -type f
-          ls -la bin/ || echo "bin directory not found"
+          ls -la .buildozer/android/platform/android-sdk/build-tools || echo "build-tools directory not found"
