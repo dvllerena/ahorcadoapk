@@ -37,7 +37,7 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev(0),pillow,sdl2_ttf==2.0.15,libffi==3.4.2
+requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev(0),pillow,sdl2_ttf==2.0.15
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
