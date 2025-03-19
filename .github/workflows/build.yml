@@ -30,19 +30,19 @@ jobs:
         run: |
           mkdir -p $HOME/.buildozer/android/packages/libffi
           cd $HOME/.buildozer/android/packages/libffi
-          wget https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
-          tar -xzf libffi-3.4.4.tar.gz
+          wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
+          tar -xzf libffi-3.4.6.tar.gz
 
       - name: Update configure.ac for libffi
         run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
           autoreconf --install
           autoupdate
           autoreconf --install
 
       - name: Patch configure.ac to allow LT_SYS_SYMBOL_USCORE
         run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
           sed -i '/AC_PROG_LIBTOOL/a m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])' configure.ac
           cat configure.ac
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Build libffi manually
         run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
           ./configure --host=$TARGET --prefix=$HOME/.buildozer/android/platform/android-ndk-r25b/sysroot/usr
           make -j$(nproc)
           make install
