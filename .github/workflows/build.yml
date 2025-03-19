@@ -33,6 +33,13 @@ jobs:
           wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
           tar -xzf libffi-3.4.6.tar.gz
 
+      - name: Patch configure.ac
+        run: |
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
+          sed -i 's/AC_TRY_COMPILE/AC_COMPILE_IFELSE/g' configure.ac
+          sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
+          echo "m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])" >> configure.ac
+
       - name: Set up NDK environment
         run: |
           export NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
@@ -42,25 +49,28 @@ jobs:
           export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
           export CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
           export AR=$TOOLCHAIN/bin/llvm-ar
-          export LD=$TOOLCHAIN/bin/ld
-          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
-          export STRIP=$TOOLCHAIN/bin/llvm-strip
           export SYSROOT=$TOOLCHAIN/sysroot
+          
           echo "CC=$CC" >> $GITHUB_ENV
           echo "CXX=$CXX" >> $GITHUB_ENV
           echo "AR=$AR" >> $GITHUB_ENV
+          echo "CFLAGS=-fPIC -target ${TARGET}${API} --sysroot=$SYSROOT" >> $GITHUB_ENV
+          echo "LDFLAGS=-target ${TARGET}${API} --sysroot=$SYSROOT" >> $GITHUB_ENV
 
-      - name: Build libffi with cross-compile flags
+      - name: Build libffi
         run: |
           cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
+          autoreconf --force --install
           ./configure \
             --host=$TARGET \
             --build=x86_64-linux-gnu \
             --disable-shared \
             --enable-static \
-            --with-sysroot=$SYSROOT \
-            CFLAGS="-fPIC -target $TARGET$API" \
-            LDFLAGS="-target $TARGET$API"
+            --prefix=$SYSROOT/usr \
+            CC="$CC" \
+            CFLAGS="$CFLAGS" \
+            LDFLAGS="$LDFLAGS"
+          
           make -j$(nproc)
           make install
 
@@ -70,6 +80,21 @@ jobs:
           sed -i 's/^requirements = .*/requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15/' buildozer.spec
           echo "android.enable_libffi_from_system = True" >> buildozer.spec
           echo "android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b" >> buildozer.spec
+          echo "android.sdk_path = $HOME/.buildozer/android/platform/android-sdk" >> buildozer.spec
+
+      - name: Create p4a hook
+        run: |
+          mkdir -p .buildozer/android/platform/python-for-android
+          cat > .buildozer/android/platform/python-for-android/enable_libffi_hook.py << 'EOF'
+          from pythonforandroid.recipe import Recipe
+          from pythonforandroid.hooks import HookBase
+
+          class LibffiHook(HookBase):
+              name = "libffi_hook"
+              def pre_build(self, ctx):
+                  if 'libffi' in ctx.recipe_build_order:
+                      ctx.recipe_build_order.remove('libffi')
+          EOF
 
       - name: Build APK
         run: |
