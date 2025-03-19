@@ -32,13 +32,15 @@ jobs:
       - name: Download and extract libffi
         run: |
           mkdir -p ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
-          curl -L -o ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3.tar.gz https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz
-          tar -xzf ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3.tar.gz -C ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
+          curl -L -o ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.4.2.tar.gz https://github.com/libffi/libffi/releases/download/v3.4.2/libffi-3.4.2.tar.gz
+          tar -xzf ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.4.2.tar.gz -C ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
 
       - name: Prepare libffi for build
         run: |
-          cd ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3
-          echo "m4_pattern_allow([LT_SYS_SYMBOL_USCORE])" >> configure.ac
+          cd ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.4.2
+          echo "m4_pattern_allow([AC_CANONICAL_SYSTEM])" >> configure.ac
+          echo "m4_pattern_allow([AC_PROG_LIBTOOL])" >> configure.ac
+          echo "m4_pattern_allow([AC_TRY_COMPILE])" >> configure.ac
           autoreconf --force --install || true
 
       - name: Upgrade pip and install Python dependencies
@@ -53,4 +55,3 @@ jobs:
       - name: Build APK
         run: |
           buildozer --debug android debug
-
