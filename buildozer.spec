@@ -7,6 +7,5 @@ source.include_exts = py,png,jpg,kv,atlas
 version = 0.1
 requirements = kivy, kivymd, pillow, numpy, pandas
 
-[buildozer]
-android.enable_libffi_from_system = True
+
 
