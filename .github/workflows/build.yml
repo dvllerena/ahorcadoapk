@@ -40,6 +40,12 @@ jobs:
           autoupdate
           autoreconf --install
 
+      - name: Patch configure.ac to allow LT_SYS_SYMBOL_USCORE
+        run: |
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
+          sed -i '/AC_PROG_LIBTOOL/a m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])' configure.ac
+          cat configure.ac
+
       - name: Set up NDK environment
         run: |
           export NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
