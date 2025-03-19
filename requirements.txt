@@ -1,5 +1,5 @@
-kivy==2.1.0
-kivymd==2.0.1.dev(0)
+kivy
+git+https://github.com/kivymd/KivyMD.git@master#egg=kivymd
 pillow
 pandas
 numpy
