@@ -38,16 +38,19 @@ jobs:
           export TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
           export TARGET="armv7a-linux-androideabi"
           export API=21
+          
           echo "CC=$TOOLCHAIN/bin/${TARGET}${API}-clang" >> $GITHUB_ENV
+          echo "AR=$TOOLCHAIN/bin/llvm-ar" >> $GITHUB_ENV
           echo "CFLAGS=-fPIC -target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot" >> $GITHUB_ENV
           echo "LDFLAGS=-target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot" >> $GITHUB_ENV
+          echo "CHOST=arm-linux-androideabi" >> $GITHUB_ENV
 
-      - name: Build libffi with fixes
+      - name: Build libffi with cross-compile fix
         run: |
-          # Clonar repositorio con autogen.sh
           mkdir -p $HOME/.buildozer/android/packages/libffi
           cd $HOME/.buildozer/android/packages/libffi
-          git clone --branch v3.4.6 --depth 1 https://github.com/libffi/libffi.git
+          
+          git clone --depth 1 --branch v3.4.6 https://github.com/libffi/libffi.git
           cd libffi
           
           # Aplicar parches críticos
@@ -55,18 +58,20 @@ jobs:
           sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
           echo "m4_pattern_allow([LT_SYS_SYMBOL_USCORE])" >> configure.ac
           
-          # Generar scripts de compilación
-          mkdir -p m4
-          autoreconf --force --install -I m4
-          
-          # Configurar y compilar
+          # Configuración específica para cross-compiling
+          ./autogen.sh
           ./configure \
             --host=$TARGET \
             --build=x86_64-pc-linux-gnu \
+            --disable-builddir \
+            --disable-multi-os-directory \
             --prefix=$TOOLCHAIN/sysroot/usr \
             CC="$CC" \
+            AR="$AR" \
             CFLAGS="$CFLAGS" \
-            LDFLAGS="$LDFLAGS"
+            LDFLAGS="$LDFLAGS" \
+            ac_cv_func_memcpy=yes \
+            ac_cv_func_memset=yes
           
           make -j$(nproc)
           make install
