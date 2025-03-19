@@ -75,9 +75,7 @@ jobs:
           hook = EnableLibffiFromSystem()
           EOF
           
-      - name: Clean previous build
-        run: |
-          buildozer android clean
+      
           
       - name: Build APK with Buildozer
         run: |
