@@ -29,6 +29,10 @@ jobs:
             zlib1g-dev libgstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             libsqlite3-dev libfreetype6-dev libjpeg-dev libpng-dev \
             libssl-dev cmake pkg-config openjdk-11-jdk zip unzip curl lld aidl
+      - name: Preinstall libffi
+        run: |
+          mkdir -p ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
+          curl -L -o ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.4.4.tar.gz https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
 
       - name: Upgrade pip and install Python dependencies
         run: |
