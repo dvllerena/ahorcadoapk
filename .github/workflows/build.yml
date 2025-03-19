@@ -63,18 +63,32 @@ jobs:
           echo "APK built successfully"
           find . -name "*.apk" -type f
 
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
+      - name: Create release directory
+        run: mkdir -p release
 
-      - name: Copy APK to artifacts directory
+      - name: Copy APK to release directory
         run: |
-          cp bin/*.apk artifacts/ || echo "No APK found in bin directory"
-          find . -name "*.apk" -type f -exec cp {} artifacts/ \;
-          ls -la artifacts/
+          find . -name "*.apk" -type f -exec cp {} release/ \;
+          ls -la release/
 
-      # Usar una acción diferente para subir artefactos
-      - name: Upload APK using actions/upload-artifact@v1
-        uses: actions/upload-artifact@v1
-        with:
-          name: apk
-          path: artifacts
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK_PATH=$(find release -name "*.apk" -type f | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            gh release create ${GITHUB_REF#refs/tags/} "$APK_PATH" --title "Release ${GITHUB_REF#refs/tags/}" --notes "Automated release"
+          else
+            echo "No APK found to release"
+            exit 1
+          fi
+
+      - name: Save APK path for debugging
+        run: |
+          APK_FILES=$(find . -name "*.apk" -type f)
+          echo "Found APK files:"
+          echo "$APK_FILES"
+          echo "APK_FILES<<EOF" >> $GITHUB_ENV
+          echo "$APK_FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
