@@ -1,0 +1,59 @@
+#:kivy 2.0.0
+
+<MenuPrincipal>:
+    md_bg_color: "#FAFAFA"  
+    name: 'menu'
+    canvas.before:
+        Color:
+            rgba: 0.9, 0.9, 0.9, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+   
+            
+        
+
+                
+        
+       
+
+<ModoSolitario>:
+    md_bg_color: "#FAFAFA"
+    MDBoxLayout:
+        orientation: 'vertical'
+        padding: "24dp"
+        spacing: "24dp"
+        
+        MDLabel:
+            text: "Nivel: " + str(root.current_level)
+            halign: "center"
+            font_size: "24sp"
+            
+        MDLabel:
+            text: f"Progreso: {root.palabras_completadas}/{root.palabras_por_nivel} palabras"
+            halign: "center"
+   
+        MDLabel:
+            text: root.estado_ahorcado
+            font_name: 'RobotoMono'
+            halign: 'center'
+        MDLabel:    
+        MDLabel:
+            text: root.palabra_oculta
+            halign: "center"
+            font_size: "32sp"
+            bold: True
+            
+        MDLabel:
+            text: f"Letras usadas: {root.letras_usadas}"
+            halign: "center"
+            
+        MDLabel:
+            text: f"Intentos restantes: {root.intentos}"
+            halign: "center"
+            
+        MDButton:
+            style: "filled"
+            on_release: app.root.current = 'menu'
+            MDButtonText:
+                text: "VOLVER AL MENU"

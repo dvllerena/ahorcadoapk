@@ -1,0 +1,71 @@
+#:kivy 2.0.0
+#:import Image kivy.uix.image.Image
+
+<MainScreen>:
+    name: "main"
+    MDBoxLayout:
+        orientation: 'vertical'
+        md_bd_color: app.theme_cls.primaryColor
+        MDCard:
+            orientation: 'vertical'
+            MDLabel:
+                text: "¡Feliz Aniversario, Amor!"
+                halign: "center"
+                pos_hint: {"center_x": .5, "center_y":.5}
+                theme_text_color: "Custom"
+                text_color: 1, 0, 0, 1
+                font_style:  "Label"
+            MDLabel:
+                id: countdown_label
+                align: "center"
+                theme_text_color: "Custom"
+                text_color: 1, 0, 0, 1
+                font_style:  "Label"
+            MDLabel:
+                id: romantic_message_label
+                align: "center"
+                theme_text_color: "Custom"
+                text_color: 1, 0, 0, 1
+                font_style:  "Label"
+            MDButton:
+                
+                pos_hint: {"center_x": 0.5}
+                on_release: root.generate_romantic_message()
+                MDButtonText:
+                    text: "Nuevo mensaje romántico"
+            MDButton:
+                
+                pos_hint: {"center_x": 0.5}
+                on_release: root.go_to_photos()
+                MDButtonText:
+                    text: "Ver nuestras fotos"
+
+<PhotoScreen>:
+    name: "photos"
+    MDBoxLayout:
+        MDCard:
+            orientation: 'vertical'
+        
+            Carousel:
+                id: photo_carousel
+                direction: 'right'
+                size_hint: 1, 0.9
+                pos_hint: {'top': 1}
+            MDLabel:
+                id: no_photos_label
+                text: "No hay fotos en la carpeta 'fotos'.\nPor favor, añade algunas fotos y reinicia la aplicación."
+                halign: "center"
+                theme_text_color: "Secondary"
+                size_hint: 1, 0.05
+                opacity: 0
+            MDButton:
+                
+                size_hint: 1, 0.05
+                on_release: root.go_back()
+                MDButtonText:
+                    text: "Volver"
+
+MDScreenManager:
+    SplashScreen:
+    MainScreen:
+    PhotoScreen:
