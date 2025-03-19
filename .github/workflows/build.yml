@@ -25,36 +25,13 @@ jobs:
           sudo apt-get install -y libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
           python -m pip install --upgrade pip
           pip install buildozer cython
-          
-          # Instalar Libtool desde fuente (versión más reciente)
-          wget http://ftpmirror.gnu.org/libtool/libtool-2.4.7.tar.gz
-          tar -xzf libtool-2.4.7.tar.gz
-          cd libtool-2.4.7
-          ./configure && make -j$(nproc) && sudo make install
 
-      - name: Download and patch libffi
+      - name: Download libffi
         run: |
           mkdir -p $HOME/.buildozer/android/packages/libffi
           cd $HOME/.buildozer/android/packages/libffi
           wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
           tar -xzf libffi-3.4.6.tar.gz
-          
-          # Aplicar parches críticos
-          cd libffi-3.4.6
-          sed -i 's/AC_TRY_COMPILE/AC_COMPILE_IFELSE/g' configure.ac
-          sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
-          echo "m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])" >> configure.ac
-          
-          # Copiar macros faltantes de Libtool
-          mkdir -p m4
-          cp /usr/share/aclocal/lt~obsolete.m4 m4/
-
-      - name: Regenerate build scripts
-        run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
-          autoreconf --force --install -I m4
-          autoupdate
-          autoreconf --force --install -I m4
 
       - name: Set up NDK environment
         run: |
@@ -62,15 +39,28 @@ jobs:
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export API=21
           export TARGET=armv7a-linux-androideabi
-          export AR=$TOOLCHAIN/bin/llvm-ar
           export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
           export CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export LD=$TOOLCHAIN/bin/ld
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
+          export SYSROOT=$TOOLCHAIN/sysroot
           echo "CC=$CC" >> $GITHUB_ENV
+          echo "CXX=$CXX" >> $GITHUB_ENV
+          echo "AR=$AR" >> $GITHUB_ENV
 
-      - name: Build libffi
+      - name: Build libffi with cross-compile flags
         run: |
           cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
-          ./configure --host=$TARGET --prefix=$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr
+          ./configure \
+            --host=$TARGET \
+            --build=x86_64-linux-gnu \
+            --disable-shared \
+            --enable-static \
+            --with-sysroot=$SYSROOT \
+            CFLAGS="-fPIC -target $TARGET$API" \
+            LDFLAGS="-target $TARGET$API"
           make -j$(nproc)
           make install
 
