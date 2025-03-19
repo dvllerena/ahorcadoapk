@@ -20,31 +20,41 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential aidl libffi-dev libssl-dev autoconf automake libtool pkg-config
+          sudo apt-get install -y build-essential aidl libssl-dev autoconf automake libtool pkg-config
           sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
           sudo apt-get install -y libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
           python -m pip install --upgrade pip
           pip install buildozer cython
+          
+          # Instalar Libtool desde fuente (versión más reciente)
+          wget http://ftpmirror.gnu.org/libtool/libtool-2.4.7.tar.gz
+          tar -xzf libtool-2.4.7.tar.gz
+          cd libtool-2.4.7
+          ./configure && make -j$(nproc) && sudo make install
 
-      - name: Download libffi manually
+      - name: Download and patch libffi
         run: |
           mkdir -p $HOME/.buildozer/android/packages/libffi
           cd $HOME/.buildozer/android/packages/libffi
-          wget https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
-          tar -xzf libffi-3.4.4.tar.gz
+          wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
+          tar -xzf libffi-3.4.6.tar.gz
+          
+          # Aplicar parches críticos
+          cd libffi-3.4.6
+          sed -i 's/AC_TRY_COMPILE/AC_COMPILE_IFELSE/g' configure.ac
+          sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
+          echo "m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])" >> configure.ac
+          
+          # Copiar macros faltantes de Libtool
+          mkdir -p m4
+          cp /usr/share/aclocal/lt~obsolete.m4 m4/
 
-      - name: Update configure.ac for libffi
+      - name: Regenerate build scripts
         run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
-          autoreconf --install
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
+          autoreconf --force --install -I m4
           autoupdate
-          autoreconf --install
-
-      - name: Patch configure.ac to allow LT_SYS_SYMBOL_USCORE
-        run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
-          sed -i '/AC_PROG_LIBTOOL/a m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])' configure.ac
-          cat configure.ac
+          autoreconf --force --install -I m4
 
       - name: Set up NDK environment
         run: |
@@ -53,57 +63,25 @@ jobs:
           export API=21
           export TARGET=armv7a-linux-androideabi
           export AR=$TOOLCHAIN/bin/llvm-ar
-          export CC=$TOOLCHAIN/bin/$TARGET$API-clang
-          export CXX=$TOOLCHAIN/bin/$TARGET$API-clang++
-          export LD=$TOOLCHAIN/bin/ld
-          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
-          export STRIP=$TOOLCHAIN/bin/llvm-strip
-          echo "NDK environment set up"
+          export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
+          export CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
+          echo "CC=$CC" >> $GITHUB_ENV
 
-      - name: Build libffi manually
+      - name: Build libffi
         run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
-          ./configure --host=$TARGET --prefix=$HOME/.buildozer/android/platform/android-ndk-r25b/sysroot/usr
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
+          ./configure --host=$TARGET --prefix=$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr
           make -j$(nproc)
           make install
 
       - name: Configure Buildozer
         run: |
-          if [ ! -f buildozer.spec ]; then
-            buildozer init
-          fi
-
+          buildozer init || true
           sed -i 's/^requirements = .*/requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15/' buildozer.spec
-
-          sed -i 's|^android.ndk_path =.*|android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk-r25b|' buildozer.spec
-          sed -i 's|^android.sdk_path =.*|android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk|' buildozer.spec
-
           echo "android.enable_libffi_from_system = True" >> buildozer.spec
+          echo "android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b" >> buildozer.spec
 
-          cat buildozer.spec
-
-      - name: Create p4a hook for libffi
-        run: |
-          cat > enable_libffi_from_system.py << 'EOF'
-          import os
-          from pythonforandroid.hooks import HookClass
-
-          class EnableLibffiFromSystem(HookClass):
-              def __init__(self, *args, **kwargs):
-                  super(EnableLibffiFromSystem, self).__init__(*args, **kwargs)
-                  self._ctx = None
-
-              def set_ctx(self, ctx):
-                  self._ctx = ctx
-
-              def prebuild_platform(self, ctx):
-                  ctx.recipe_build_order.remove('libffi')
-                  print("Removed libffi from build order to use system libffi")
-
-          hook = EnableLibffiFromSystem()
-          EOF
-
-      - name: Build APK with Buildozer
+      - name: Build APK
         run: |
           buildozer -v android debug
 
