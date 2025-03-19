@@ -29,21 +29,32 @@ jobs:
             zlib1g-dev libgstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             libsqlite3-dev libfreetype6-dev libjpeg-dev libpng-dev \
             libssl-dev cmake pkg-config openjdk-11-jdk zip unzip curl lld aidl
-      - name: Preinstall libffi
+      - name: Update Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool
+      - name: Allow undefined macros
+        run: |
+          export AUTOMAKE_OPTIONS=foreign
+          autoreconf --force --install
+      - name: Download libffi manually
         run: |
           mkdir -p ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
-          curl -L -o ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.4.4.tar.gz https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
+          curl -L -o ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3.tar.gz https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz
 
       - name: Upgrade pip and install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install buildozer==1.5.0 cython==0.29.33 setuptools
+      - name: Update Buildozer and python-for-android
+        run: |
+          pip install --upgrade buildozer python-for-android
 
       - name: Configure Buildozer
         run: |
           sed -i 's/# android.accept_sdk_license = False/android.accept_sdk_license = True/g' buildozer.spec
-
-      - name: Cache Buildozer and Python-for-Android
+    
+      - name: Cache Buildozer and dependencies
         uses: actions/cache@v4
         with:
           path: |
