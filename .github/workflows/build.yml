@@ -1,4 +1,5 @@
 name: Build APK for Ahorcado
+
 on:
   push:
     branches: [ master ]
@@ -10,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -24,35 +25,57 @@ jobs:
           sudo apt-get install -y libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
           python -m pip install --upgrade pip
           pip install buildozer cython
-          
+
       - name: Download libffi manually
         run: |
           mkdir -p $HOME/.buildozer/android/packages/libffi
           cd $HOME/.buildozer/android/packages/libffi
-          # Usar la URL correcta para libffi 3.4.4
           wget https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
           tar -xzf libffi-3.4.4.tar.gz
-          
+
+      - name: Update configure.ac for libffi
+        run: |
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
+          autoreconf --install
+          autoupdate
+          autoreconf --install
+
+      - name: Set up NDK environment
+        run: |
+          export NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export API=21
+          export TARGET=armv7a-linux-androideabi
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export CC=$TOOLCHAIN/bin/$TARGET$API-clang
+          export CXX=$TOOLCHAIN/bin/$TARGET$API-clang++
+          export LD=$TOOLCHAIN/bin/ld
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
+          echo "NDK environment set up"
+
+      - name: Build libffi manually
+        run: |
+          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.4
+          ./configure --host=$TARGET --prefix=$HOME/.buildozer/android/platform/android-ndk-r25b/sysroot/usr
+          make -j$(nproc)
+          make install
+
       - name: Configure Buildozer
         run: |
-          # Si no existe buildozer.spec, inicializar uno
           if [ ! -f buildozer.spec ]; then
             buildozer init
           fi
-          
-          # Modificar el archivo buildozer.spec para usar libffi local
+
           sed -i 's/^requirements = .*/requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15/' buildozer.spec
-          
-          # Configurar rutas de NDK y SDK
+
           sed -i 's|^android.ndk_path =.*|android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk-r25b|' buildozer.spec
           sed -i 's|^android.sdk_path =.*|android.sdk_path = /home/runner/.buildozer/android/platform/android-sdk|' buildozer.spec
-          
-          # Configurar para usar libffi del sistema
+
           echo "android.enable_libffi_from_system = True" >> buildozer.spec
-          
-          # Mostrar el archivo buildozer.spec para verificar
+
           cat buildozer.spec
-          
+
       - name: Create p4a hook for libffi
         run: |
           cat > enable_libffi_from_system.py << 'EOF'
@@ -63,24 +86,21 @@ jobs:
               def __init__(self, *args, **kwargs):
                   super(EnableLibffiFromSystem, self).__init__(*args, **kwargs)
                   self._ctx = None
-                  
+
               def set_ctx(self, ctx):
                   self._ctx = ctx
-                  
+
               def prebuild_platform(self, ctx):
-                  # Usar libffi del sistema en lugar de compilarla
                   ctx.recipe_build_order.remove('libffi')
                   print("Removed libffi from build order to use system libffi")
-          
+
           hook = EnableLibffiFromSystem()
           EOF
-          
-      
-          
+
       - name: Build APK with Buildozer
         run: |
           buildozer -v android debug
-          
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
