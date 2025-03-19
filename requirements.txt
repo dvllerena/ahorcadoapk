@@ -1,0 +1,11 @@
+kivy==2.1.0
+kivymd==2.0.1.dev0
+pillow
+pandas
+numpy
+requests
+matplotlib
+scipy
+sqlalchemy
+pygments
+
