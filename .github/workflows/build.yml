@@ -32,7 +32,6 @@ jobs:
           mkdir -p $HOME/.buildozer/android/platform
           wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip android-ndk-r25b-linux.zip -d $HOME/.buildozer/android/platform
-          mv $HOME/.buildozer/android/platform/android-ndk-r25b $HOME/.buildozer/android/platform/android-ndk-r25b
 
       - name: Configure libffi build
         run: |
@@ -43,7 +42,6 @@ jobs:
           export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
           export CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
           
-          # Flags críticos actualizados
           export CFLAGS="-fPIC -D__ANDROID_API__=$API -target ${TARGET}${API} -gcc-toolchain $TOOLCHAIN --sysroot=$TOOLCHAIN/sysroot"
           export LDFLAGS="-target ${TARGET}${API} -gcc-toolchain $TOOLCHAIN --sysroot=$TOOLCHAIN/sysroot -lc -lm"
 
