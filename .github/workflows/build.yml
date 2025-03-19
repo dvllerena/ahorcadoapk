@@ -12,12 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -25,11 +25,6 @@ jobs:
             pkg-config zlib1g-dev libssl-dev \
             libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
             clang llvm
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install buildozer cython
 
       - name: Setup Android NDK
         run: |
@@ -43,27 +38,28 @@ jobs:
           export TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
           export TARGET="armv7a-linux-androideabi"
           export API=21
-          
-          echo "NDK_ROOT=$NDK_ROOT" >> $GITHUB_ENV
-          echo "TOOLCHAIN=$TOOLCHAIN" >> $GITHUB_ENV
-          echo "TARGET=$TARGET" >> $GITHUB_ENV
-          echo "API=$API" >> $GITHUB_ENV
           echo "CC=$TOOLCHAIN/bin/${TARGET}${API}-clang" >> $GITHUB_ENV
-          echo "CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++" >> $GITHUB_ENV
           echo "CFLAGS=-fPIC -target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot" >> $GITHUB_ENV
           echo "LDFLAGS=-target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot" >> $GITHUB_ENV
 
-      - name: Build libffi from source
+      - name: Build libffi with fixes
         run: |
-          LIBFFI_DIR="$HOME/.buildozer/android/packages/libffi"
-          mkdir -p $LIBFFI_DIR
-          cd $LIBFFI_DIR
-          
-          # Clonar y compilar libffi desde el repositorio git
-          git clone --depth 1 --branch v3.4.6 https://github.com/libffi/libffi.git
+          # Clonar repositorio con autogen.sh
+          mkdir -p $HOME/.buildozer/android/packages/libffi
+          cd $HOME/.buildozer/android/packages/libffi
+          git clone --branch v3.4.6 --depth 1 https://github.com/libffi/libffi.git
           cd libffi
           
-          ./autogen.sh
+          # Aplicar parches críticos
+          sed -i 's/AC_TRY_COMPILE/AC_COMPILE_IFELSE/g' configure.ac
+          sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
+          echo "m4_pattern_allow([LT_SYS_SYMBOL_USCORE])" >> configure.ac
+          
+          # Generar scripts de compilación
+          mkdir -p m4
+          autoreconf --force --install -I m4
+          
+          # Configurar y compilar
           ./configure \
             --host=$TARGET \
             --build=x86_64-pc-linux-gnu \
@@ -86,16 +82,16 @@ jobs:
           source.dir = .
           version = 1.0
           requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15
-          android.ndk_path = $NDK_ROOT
+          android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b
           android.sdk_path = $HOME/.buildozer/android/platform/android-sdk
           android.enable_libffi_from_system = True
           EOF
 
-      - name: Build Android APK
+      - name: Build APK
         run: |
           buildozer -v android debug
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
