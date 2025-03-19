@@ -1,11 +1,5 @@
 name: Build APK for Ahorcado
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,10 +14,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential aidl libssl-dev autoconf automake libtool pkg-config \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev \
-            clang llvm
+          sudo apt-get install -y git build-essential autoconf automake libtool \
+            libssl-dev pkg-config libsdl2-dev zlib1g-dev
           python -m pip install --upgrade pip
           pip install buildozer cython
 
@@ -33,52 +25,37 @@ jobs:
           wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip android-ndk-r25b-linux.zip -d $HOME/.buildozer/android/platform
 
-      - name: Configure libffi build
+      - name: Configure environment
         run: |
           export NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export TARGET=armv7a-linux-androideabi
           export API=21
           export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
-          export CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
-          
-          export CFLAGS="-fPIC -D__ANDROID_API__=$API -target ${TARGET}${API} -gcc-toolchain $TOOLCHAIN --sysroot=$TOOLCHAIN/sysroot"
-          export LDFLAGS="-target ${TARGET}${API} -gcc-toolchain $TOOLCHAIN --sysroot=$TOOLCHAIN/sysroot -lc -lm"
-
+          export CFLAGS="-fPIC -target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot"
+          export LDFLAGS="-target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot"
           echo "CC=$CC" >> $GITHUB_ENV
           echo "CFLAGS=$CFLAGS" >> $GITHUB_ENV
           echo "LDFLAGS=$LDFLAGS" >> $GITHUB_ENV
 
-      - name: Download and prepare libffi
+      - name: Build libffi from source
         run: |
           LIBFFI_DIR="$HOME/.buildozer/android/packages/libffi"
           mkdir -p $LIBFFI_DIR
           cd $LIBFFI_DIR
           
-          # Descargar y extraer libffi
-          wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
-          tar -xzf libffi-3.4.6.tar.gz
+          git clone https://github.com/libffi/libffi.git
+          cd libffi
+          git checkout v3.4.6
           
-          # Verificar estructura de directorios
-          ls -la $LIBFFI_DIR/libffi-3.4.6 || (echo "Error: Directorio libffi no creado"; exit 1)
-
-      - name: Build and install libffi
-        run: |
-          export LIBFFI_SRC="$HOME/.buildozer/android/packages/libffi/libffi-3.4.6"
-          cd $LIBFFI_SRC
-          
-          # Ejecutar autogen.sh con verificaciones
-          ./autogen.sh || (echo "Error en autogen.sh"; cat config.log; exit 1)
-          
-          # Configurar con verificación de paths
+          ./autogen.sh
           ./configure \
             --host=$TARGET \
             --build=x86_64-pc-linux-gnu \
-            --disable-multi-os-directory \
             --prefix=$TOOLCHAIN/sysroot/usr \
             CC="$CC" \
             CFLAGS="$CFLAGS" \
-            LDFLAGS="$LDFLAGS" || (echo "Error en configure"; cat config.log; exit 1)
+            LDFLAGS="$LDFLAGS"
           
           make -j$(nproc)
           make install
@@ -88,9 +65,7 @@ jobs:
           buildozer init || true
           cat << EOF >> buildozer.spec
           android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b
-          android.sdk_path = $HOME/.buildozer/android/platform/android-sdk
-          android.enable_libffi_from_system = True
-          requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15
+          requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow
           EOF
 
       - name: Build APK
