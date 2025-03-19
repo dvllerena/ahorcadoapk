@@ -4,7 +4,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  workflow_dispatch: # Permite ejecutar el flujo manualmente desde la interfaz de GitHub
+  workflow_dispatch: # Permite ejecutar manualmente desde la interfaz de GitHub
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11' # Usa Python 3.11 para mayor compatibilidad con Buildozer y python-for-android
+          python-version: '3.11'
 
       - name: Install system dependencies
         run: |
@@ -30,14 +30,21 @@ jobs:
             libsqlite3-dev libfreetype6-dev libjpeg-dev libpng-dev \
             libssl-dev cmake pkg-config openjdk-11-jdk zip unzip curl lld aidl
 
-      - name: Download and prepare libffi
+      - name: Download and extract libffi
         run: |
           mkdir -p ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
           curl -L -o ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3.tar.gz https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz
           tar -xzf ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3.tar.gz -C ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi
+
+      - name: Prepare libffi for build
+        run: |
           cd ~/.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/packages/libffi/libffi-3.3
-          ./autogen.sh
-          autoreconf --force --install
+          if [ -f autogen.sh ]; then
+            ./autogen.sh
+          else
+            echo "autogen.sh not found. Skipping."
+          fi
+          autoreconf --force --install || true
 
       - name: Upgrade pip and install Python dependencies
         run: |
