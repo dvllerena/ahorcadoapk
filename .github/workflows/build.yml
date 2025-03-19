@@ -49,10 +49,28 @@ jobs:
           echo "CFLAGS=$CFLAGS" >> $GITHUB_ENV
           echo "LDFLAGS=$LDFLAGS" >> $GITHUB_ENV
 
+      - name: Download and prepare libffi
+        run: |
+          LIBFFI_DIR="$HOME/.buildozer/android/packages/libffi"
+          mkdir -p $LIBFFI_DIR
+          cd $LIBFFI_DIR
+          
+          # Descargar y extraer libffi
+          wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
+          tar -xzf libffi-3.4.6.tar.gz
+          
+          # Verificar estructura de directorios
+          ls -la $LIBFFI_DIR/libffi-3.4.6 || (echo "Error: Directorio libffi no creado"; exit 1)
+
       - name: Build and install libffi
         run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
-          ./autogen.sh
+          export LIBFFI_SRC="$HOME/.buildozer/android/packages/libffi/libffi-3.4.6"
+          cd $LIBFFI_SRC
+          
+          # Ejecutar autogen.sh con verificaciones
+          ./autogen.sh || (echo "Error en autogen.sh"; cat config.log; exit 1)
+          
+          # Configurar con verificación de paths
           ./configure \
             --host=$TARGET \
             --build=x86_64-pc-linux-gnu \
@@ -60,7 +78,7 @@ jobs:
             --prefix=$TOOLCHAIN/sysroot/usr \
             CC="$CC" \
             CFLAGS="$CFLAGS" \
-            LDFLAGS="$LDFLAGS"
+            LDFLAGS="$LDFLAGS" || (echo "Error en configure"; cat config.log; exit 1)
           
           make -j$(nproc)
           make install
