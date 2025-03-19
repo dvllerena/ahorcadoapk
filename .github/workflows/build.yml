@@ -1,107 +1,71 @@
 name: Build APK for Ahorcado
-
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential aidl libssl-dev autoconf automake libtool pkg-config
-          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
-          sudo apt-get install -y libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev
-          python -m pip install --upgrade pip
-          pip install buildozer cython
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libssl-dev zlib1g-dev autoconf automake libtool pkg-config
+        sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
+        sudo apt-get install -y libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev
+        python -m pip install --upgrade pip
+        pip install buildozer cython
 
-      - name: Download libffi
-        run: |
-          mkdir -p $HOME/.buildozer/android/packages/libffi
-          cd $HOME/.buildozer/android/packages/libffi
-          wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
-          tar -xzf libffi-3.4.6.tar.gz
+    - name: Set up NDK environment
+      run: |
+        export NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+        export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+        export API=21
+        export TARGET=armv7a-linux-androideabi
+        export CC=$TOOLCHAIN/bin/$TARGET$API-clang
+        export CXX=$TOOLCHAIN/bin/$TARGET$API-clang++
+        export AR=$TOOLCHAIN/bin/llvm-ar
+        export LD=$TOOLCHAIN/bin/ld
+        export STRIP=$TOOLCHAIN/bin/llvm-strip
+        export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
 
-      - name: Patch configure.ac
-        run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
-          sed -i 's/AC_TRY_COMPILE/AC_COMPILE_IFELSE/g' configure.ac
-          sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
-          echo "m4_pattern_allow([^LT_SYS_SYMBOL_USCORE$])" >> configure.ac
+    - name: Download libffi manually
+      run: |
+        mkdir -p $HOME/.buildozer/android/packages/libffi
+        cd $HOME/.buildozer/android/packages/libffi
+        wget https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
+        tar -xzf libffi-3.4.6.tar.gz
 
-      - name: Set up NDK environment
-        run: |
-          export NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
-          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
-          export API=21
-          export TARGET=armv7a-linux-androideabi
-          export CC=$TOOLCHAIN/bin/${TARGET}${API}-clang
-          export CXX=$TOOLCHAIN/bin/${TARGET}${API}-clang++
-          export AR=$TOOLCHAIN/bin/llvm-ar
-          export SYSROOT=$TOOLCHAIN/sysroot
-          
-          echo "CC=$CC" >> $GITHUB_ENV
-          echo "CXX=$CXX" >> $GITHUB_ENV
-          echo "AR=$AR" >> $GITHUB_ENV
-          echo "CFLAGS=-fPIC -target ${TARGET}${API} --sysroot=$SYSROOT" >> $GITHUB_ENV
-          echo "LDFLAGS=-target ${TARGET}${API} --sysroot=$SYSROOT" >> $GITHUB_ENV
+    - name: Build libffi manually
+      run: |
+        cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
+        autoreconf --install
+        ./configure --host=$TARGET --prefix=$HOME/.buildozer/android/platform/android-ndk-r25b/sysroot/usr
+        make -j$(nproc)
+        make install
 
-      - name: Build libffi
-        run: |
-          cd $HOME/.buildozer/android/packages/libffi/libffi-3.4.6
-          autoreconf --force --install
-          ./configure \
-            --host=$TARGET \
-            --build=x86_64-linux-gnu \
-            --disable-shared \
-            --enable-static \
-            --prefix=$SYSROOT/usr \
-            CC="$CC" \
-            CFLAGS="$CFLAGS" \
-            LDFLAGS="$LDFLAGS"
-          
-          make -j$(nproc)
-          make install
+    - name: Configure Buildozer
+      run: |
+        if [ ! -f buildozer.spec ]; then buildozer init; fi
+        sed -i 's/^requirements = .*/requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow/' buildozer.spec
+        echo "android.enable_libffi_from_system = True" >> buildozer.spec
 
-      - name: Configure Buildozer
-        run: |
-          buildozer init || true
-          sed -i 's/^requirements = .*/requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15/' buildozer.spec
-          echo "android.enable_libffi_from_system = True" >> buildozer.spec
-          echo "android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b" >> buildozer.spec
-          echo "android.sdk_path = $HOME/.buildozer/android/platform/android-sdk" >> buildozer.spec
+    - name: Build APK
+      run: buildozer -v android debug
 
-      - name: Create p4a hook
-        run: |
-          mkdir -p .buildozer/android/platform/python-for-android
-          cat > .buildozer/android/platform/python-for-android/enable_libffi_hook.py << 'EOF'
-          from pythonforandroid.recipe import Recipe
-          from pythonforandroid.hooks import HookBase
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: bin/*.apk
 
-          class LibffiHook(HookBase):
-              name = "libffi_hook"
-              def pre_build(self, ctx):
-                  if 'libffi' in ctx.recipe_build_order:
-                      ctx.recipe_build_order.remove('libffi')
-          EOF
-
-      - name: Build APK
-        run: |
-          buildozer -v android debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: bin/*.apk
