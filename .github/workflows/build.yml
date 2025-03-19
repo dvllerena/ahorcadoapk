@@ -23,8 +23,7 @@ jobs:
           sudo apt-get install -y \
             git build-essential autoconf automake libtool \
             pkg-config zlib1g-dev libssl-dev \
-            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-            clang llvm
+            libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 
       - name: Setup Android NDK
         run: |
@@ -32,7 +31,7 @@ jobs:
           wget https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip android-ndk-r25b-linux.zip -d $HOME/.buildozer/android/platform
 
-      - name: Configure Android toolchain
+      - name: Configure toolchain
         run: |
           export NDK_ROOT="$HOME/.buildozer/android/platform/android-ndk-r25b"
           export TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
@@ -41,38 +40,41 @@ jobs:
           
           echo "CC=$TOOLCHAIN/bin/${TARGET}${API}-clang" >> $GITHUB_ENV
           echo "AR=$TOOLCHAIN/bin/llvm-ar" >> $GITHUB_ENV
+          echo "STRIP=$TOOLCHAIN/bin/llvm-strip" >> $GITHUB_ENV
+          echo "RANLIB=$TOOLCHAIN/bin/llvm-ranlib" >> $GITHUB_ENV
           echo "CFLAGS=-fPIC -target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot" >> $GITHUB_ENV
           echo "LDFLAGS=-target ${TARGET}${API} --sysroot=$TOOLCHAIN/sysroot" >> $GITHUB_ENV
-          echo "CHOST=arm-linux-androideabi" >> $GITHUB_ENV
 
-      - name: Build libffi with cross-compile fix
+      - name: Build libffi
         run: |
-          mkdir -p $HOME/.buildozer/android/packages/libffi
-          cd $HOME/.buildozer/android/packages/libffi
+          LIBFFI_DIR="$HOME/.buildozer/android/packages/libffi"
+          mkdir -p $LIBFFI_DIR
+          cd $LIBFFI_DIR
           
           git clone --depth 1 --branch v3.4.6 https://github.com/libffi/libffi.git
           cd libffi
           
-          # Aplicar parches críticos
-          sed -i 's/AC_TRY_COMPILE/AC_COMPILE_IFELSE/g' configure.ac
-          sed -i 's/AC_CANONICAL_SYSTEM/AC_CANONICAL_TARGET/g' configure.ac
-          echo "m4_pattern_allow([LT_SYS_SYMBOL_USCORE])" >> configure.ac
-          
-          # Configuración específica para cross-compiling
+          # Configuración explícita para cross-compiling
           ./autogen.sh
           ./configure \
-            --host=$TARGET \
+            --host=${TARGET} \
             --build=x86_64-pc-linux-gnu \
-            --disable-builddir \
-            --disable-multi-os-directory \
+            --disable-shared \
+            --enable-static \
+            --disable-dependency-tracking \
             --prefix=$TOOLCHAIN/sysroot/usr \
             CC="$CC" \
             AR="$AR" \
+            STRIP="$STRIP" \
+            RANLIB="$RANLIB" \
             CFLAGS="$CFLAGS" \
             LDFLAGS="$LDFLAGS" \
             ac_cv_func_memcpy=yes \
-            ac_cv_func_memset=yes
-          
+            ac_cv_func_memset=yes \
+            ac_cv_build=x86_64-pc-linux-gnu \
+            ac_cv_host=${TARGET} \
+            ac_cv_target=${TARGET}
+
           make -j$(nproc)
           make install
 
@@ -83,12 +85,10 @@ jobs:
           [app]
           title = Ahorcado
           package.name = ahorcado
-          package.domain = org.example
           source.dir = .
           version = 1.0
           requirements = python3,kivy==2.2.1,kivymd==2.0.1.dev0,pillow,sdl2_ttf==2.0.15
           android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b
-          android.sdk_path = $HOME/.buildozer/android/platform/android-sdk
           android.enable_libffi_from_system = True
           EOF
 
