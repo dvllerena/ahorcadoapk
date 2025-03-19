@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install buildozer
+          pip install buildozer==1.5.0
           pip install cython==0.29.33
 
       - name: Install system dependencies
@@ -57,38 +57,43 @@ jobs:
             unzip \
             zip
 
+      # Instalar Android SDK explícitamente
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      # Instalar las build-tools específicamente
+      - name: Install Android build-tools
+        run: |
+          yes | sdkmanager "build-tools;34.0.0"
+          yes | sdkmanager "platforms;android-34"
+          yes | sdkmanager "platform-tools"
+          yes | sdkmanager "tools"
+          yes | sdkmanager "ndk;25.2.9519653"
+          yes | sdkmanager --licenses
+
+      # Configurar buildozer.spec
+      - name: Configure buildozer.spec
+        run: |
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          sed -i 's/^android.sdk_path =.*/android.sdk_path = \/usr\/local\/lib\/android\/sdk/' buildozer.spec
+          sed -i 's/^android.ndk_path =.*/android.ndk_path = \/usr\/local\/lib\/android\/sdk\/ndk\/25.2.9519653/' buildozer.spec
+          sed -i 's/^android.api =.*/android.api = 34/' buildozer.spec
+          sed -i 's/^android.minapi =.*/android.minapi = 21/' buildozer.spec
+          sed -i 's/^android.ndk =.*/android.ndk = 25.2.9519653/' buildozer.spec
+          sed -i 's/^p4a.bootstrap =.*/p4a.bootstrap = sdl2/' buildozer.spec
+          cat buildozer.spec
+
+      # Construir APK con verbose para depuración
       - name: Build APK
         run: |
-          buildozer android debug
+          buildozer -v android debug
           echo "APK built successfully"
           find . -name "*.apk" -type f
 
-      - name: Create release directory
-        run: mkdir -p release
-
-      - name: Copy APK to release directory
+      # Listar archivos para depuración
+      - name: List files
         run: |
-          find . -name "*.apk" -type f -exec cp {} release/ \;
-          ls -la release/
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          APK_PATH=$(find release -name "*.apk" -type f | head -n 1)
-          if [ -n "$APK_PATH" ]; then
-            gh release create ${GITHUB_REF#refs/tags/} "$APK_PATH" --title "Release ${GITHUB_REF#refs/tags/}" --notes "Automated release"
-          else
-            echo "No APK found to release"
-            exit 1
-          fi
-
-      - name: Save APK path for debugging
-        run: |
-          APK_FILES=$(find . -name "*.apk" -type f)
-          echo "Found APK files:"
-          echo "$APK_FILES"
-          echo "APK_FILES<<EOF" >> $GITHUB_ENV
-          echo "$APK_FILES" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          find . -name "*.apk" -type f
+          ls -la bin/ || echo "bin directory not found"
